@@ -1,9 +1,9 @@
 # Code file containing all the random trials and errors
-
+source("2001_functions.R")
 #### random code ####
 # Overall Table with Ethnic Group, Age, Gender, Population (no other factors)
-f_2001 <- read_xls("2001/2001_ind_edad_fem.xls") %>% get_summary() %>% mutate(gender = "F")
-m_2001 <- read_xls("2001/2001_ind_edad_masc.xls") %>% get_summary() %>% mutate(gender = "M")
+f_2001 <- read_xls("2001/2001_ind_edad_fem.xls") %>% get_summary_2001() %>% mutate(gender = "F")
+m_2001 <- read_xls("2001/2001_ind_edad_masc.xls") %>% get_summary_2001() %>% mutate(gender = "M")
 
 f_m_2001 <- rbind(f_2001, m_2001)
 
@@ -48,14 +48,24 @@ m_1 <- read_xls("2001/2001_ind_edad_masc_p36=1.xls")
 m_2 <- read_xls("2001/2001_ind_edad_masc_p36=2.xls")
 m_9 <- read_xls("2001/2001_ind_edad_masc_p36=9.xls")
 
-mun_f_1 <- get_mun_2001(f_1)
-mun_f_2 <- get_mun_2001(f_2)
-mun_f_9 <- get_mun_2001(f_9)
+fleer_2001 <- get_2001(f_1)
+fnoleer_2001 <- get_2001(f_2)
+fse_2001 <- get_2001(f_9)
 
-mun_m_1 <- get_mun_2001(m_1)
-mun_m_2 <- get_mun_2001(m_2)
-mun_m_9 <- get_mun_2001(m_9)
+mleer_2001 <- get_2001(m_1)
+mnoleer_2001 <- get_2001(m_2)
+mse_2001 <- get_2001(m_9)
 
+
+
+alf <- fleer_2001 %>% 
+  inner_join(fnoleer_2001, by = "id") %>%
+  inner_join(fse_2001, by = "id") %>%
+  rename(leer = 1)
+
+alf_m <- mleer_2001 %>% 
+  inner_join(mnoleer_2001, by = "name") %>%
+  inner_join(mse_2001, by = "name")
 
 # check to see if the 2001 get_mun code is robust
 # verdict: everything seems to work as intended, good work

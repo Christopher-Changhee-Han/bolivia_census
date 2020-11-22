@@ -1,9 +1,10 @@
+setwd("~/bolivia_census")
 source("packages.R")
 
 #### make the functions replicable later
 
-
-
+###############################################################################
+###############################################################################
 #### aggregate 2001 data to the municipal level ####
 # poblacion
 rawdata2001 <- read_xlsx("data/2001.xlsx", sheet = 1)
@@ -74,7 +75,8 @@ df_2001 <- id_map %>%
   inner_join(poblacion_2001, by = c("departamento", "municipio")) %>%
   inner_join(vivienda_2001, by = c("departamento", "municipio"))
 
-
+###############################################################################
+###############################################################################
 #### aggregate 2012 data to the municipal level ####
 
 #### ind_pop ####
@@ -131,6 +133,9 @@ names(edad) <- c("departamento", "municipio",
                            )
 edad$departamento <- stri_trans_general(str = edad$departamento, id = "Latin-ASCII")
 edad$municipio <- stri_trans_general(str = edad$municipio, id = "Latin-ASCII")
+
+proportion_15ymas <- rowSums(edad[,6:21])/rowSums(edad[,3:21]) #get proportion of 15 years and older
+pueblo$ind_pop <- round(pueblo$ind_pop * proportion_15ymas) # adjust the 2012 ind pop (2001 is 15 years and older)
 
 rm(temp)
 
@@ -302,8 +307,6 @@ df_2012 <- arrange(df_2012, municipio)
 urban <- arrange(urban, municipio)
 df_2012 <- cbind(df_2012, urban[,2:3]) # manually merging columns because of irregularities in municipio columns
 
-#### fix the irregularities between the two data frame ####
-
 # Fixing irregularities in the municipio names
 
 df_2012[c(62,83,197,220,265,269), "municipio"] <- c("Chiquihuta", "Coro Coro", "Puerto Gonzales Moreno", "Salinas de Garcia Mendoza","El Sena", "Sipe Sipe")
@@ -313,12 +316,15 @@ df_2012 <- arrange(df_2012, municipio, departamento)
 df_2012 <- id_map %>% 
   inner_join(df_2012, by= c("departamento", "municipio"))
 
+###############################################################################
+###############################################################################
 # aggregate 0 to 60, 60 and up age groups for consistency with 2001 census
 # for 2001, calculate the ind_pop
 
 df_2001 <- df_2001 %>%
   group_by(departamento, municipio) %>%
   mutate(edad0a60 = sum(c_across(p29_1:p29_5)),
+         total_pop_15ymas = sum(c_across(p29_3:p29_6)),               
          ind_pop = sum(c_across(p49_1:p49_6))) %>%
   select(-c(9:13, 42:48)) %>%
   relocate(edad0a60, .before = p29_6) %>%
@@ -327,7 +333,8 @@ df_2001 <- df_2001 %>%
 df_2012 <- df_2012 %>% 
   group_by(departamento, municipio) %>%
   mutate(edad0a60 = sum(c_across(edad0a4:edad55a59)),
-         edad60ymas = sum(c_across(edad60a64:edad90ymas))
+         edad60ymas = sum(c_across(edad60a64:edad90ymas)),
+         total_pop_15ymas = sum(c_across(edad15a19:edad90ymas))
          ) %>%
   select(-(11:29)) %>% 
   relocate(edad0a60, edad60ymas, .before = ed_pub) 
@@ -391,19 +398,312 @@ save(df_2001, file = "2001.rdata")
 save(df_2012, file = "2012.rdata")
 save(id_map, file = "id_map.rdata")
 
-
-
-
-
-
+###############################################################################
+###############################################################################
+#### add additional variables from queried tables from Dr. Poertner ####
 
 rm(list = ls())
+setwd("~/bolivia_census")
 load("2001.rdata")
 load("2012.rdata")
 load("id_map.rdata")
 
+
+###############################################################################
+# 2001
+source("packages.R")
 source("2001_functions.R")
 
+setwd("data/2001_others/")
+
+#### job ####
+
+# female job
+myFiles <- list.files(pattern = "2001_ind_edad_fem_caebl=.*xls")
+
+caeblf = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("trab_", i, sep = "")
+  caeblf <- caeblf %>% right_join(temp, by = "id")
+}
+
+# male job
+
+myFiles <- list.files(pattern = "2001_ind_edad_masc_caebl=.*xls")
+
+caeblm = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("trab_", i, sep = "")
+  caeblm <- caeblm %>% right_join(temp, by = "id")
+}
+
+job_2001 <- bind_rows(caeblf, caeblm) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+  
+
+rm(caeblf, caeblm)
+
+# join job into 2001 data
+df_2001 <- df_2001 %>% inner_join(job_2001, by = "id")
+
+#### education ####
+
+# female education
+myFiles <- list.files(pattern = "2001_ind_edad_fem_p39niv=.*xls")
+
+eduf = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("edu_nivel_", i, sep = "")
+  eduf <- eduf %>% right_join(temp, by = "id")
+}
+eduf <- eduf %>% group_by(id) %>% mutate(edu_nivel_low = sum(c_across(edu_nivel_1:edu_nivel_2)),
+                                         edu_nivel_med = sum(c_across(edu_nivel_3:edu_nivel_7)),
+                                         edu_nivel_high = sum(c_across(edu_nivel_8:edu_nivel_13))
+                                         ) %>% select(-(2:14))
+
+# male education
+
+myFiles <- list.files(pattern = "2001_ind_edad_masc_p39niv=.*xls")
+
+edum = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("edu_nivel_", i, sep = "")
+  edum <- edum %>% right_join(temp, by = "id")
+}
+edum <- edum %>% group_by(id) %>% mutate(edu_nivel_low = sum(c_across(edu_nivel_1:edu_nivel_2)),
+                                         edu_nivel_med = sum(c_across(edu_nivel_3:edu_nivel_7)),
+                                         edu_nivel_high = sum(c_across(edu_nivel_8:edu_nivel_13))
+                                          ) %>% select(-(2:14))
+edu_2001 <- bind_rows(eduf, edum) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+
+rm(eduf, edum)
+
+# join education level into 2001 data
+df_2001 <- df_2001 %>% inner_join(edu_2001, by = "id")
+
+#### illiteracy ####
+
+# male illiteracy
+myFiles <- list.files(pattern = "2001_ind_edad_fem_p36=.*xls")
+
+illif = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("leer_", i, sep = "")
+  illif <- illif %>% right_join(temp, by = "id")
+}
 
 
+myFiles <- list.files(pattern = "2001_ind_edad_masc_p36=.*xls")
 
+illim = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("leer_", i, sep = "")
+  illim <- illim %>% right_join(temp, by = "id")
+}
+
+illi_2001 <- bind_rows(illif, illim) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+
+rm(illif, illim)
+
+# join education level into 2001 data
+df_2001 <- df_2001 %>% inner_join(illi_2001, by = "id")
+
+#### place of birth ####
+
+# male place of birth
+myFiles <- list.files(pattern = "2001_ind_edad_fem_p34a=.*xls")
+
+naciof = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("nacio_", i, sep = "")
+  naciof <- naciof %>% right_join(temp, by = "id")
+}
+
+
+myFiles <- list.files(pattern = "2001_ind_edad_masc_p34a=.*xls")
+
+naciom = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2001()
+  names(temp)[2] <-paste("nacio_", i, sep = "")
+  naciom <- naciom %>% right_join(temp, by = "id")
+}
+
+nacio_2001 <- bind_rows(naciof, naciom) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+
+rm(naciof, naciom)
+
+# join education level into 2001 data
+df_2001 <- df_2001 %>% inner_join(nacio_2001, by = "id")
+setwd("~/bolivia_census")
+save(df_2001, file= "2001.rdata")
+###############################################################################
+
+rm(list = ls())
+setwd("~/bolivia_census")
+load("2012.rdata")
+
+# 2012
+source("packages.R")
+source("2012_functions.R")
+
+setwd("~/bolivia_census/data/2012_others/")
+#### job ####
+
+# female job
+myFiles <- list.files(pattern = "2012_ind_edad_fem_p44=.*xls")
+
+caeblf = data.frame(id = character(0))
+for (i in c(2:6,8,9,7, 10:14,16, 15, 1)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("trab_", i, sep = "")
+  caeblf <- caeblf %>% right_join(temp, by = "id")
+}
+
+# male job
+
+myFiles <- list.files(pattern = "2012_ind_edad_masc_p44=.*xls")
+
+caeblm = data.frame(id = character(0))
+for (i in c(2:6,8,9,7, 10:14,16, 15, 1)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("trab_", i, sep = "")
+  caeblm <- caeblm %>% right_join(temp, by = "id")
+}
+
+job_2012 <- bind_rows(caeblf, caeblm) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+job_2012[,11] <- job_2012[,11] + job_2012[,12] # refer to documentation
+job_2012[,16] <- job_2012[,16] + job_2012[,17]
+job_2012 <- job_2012[,-c(12,17)]
+names(job_2012) <- c("id", "trab_1", "trab_2", "trab_3", "trab_4", "trab_5", 
+                     "trab_6", "trab_7", "trab_8", "trab_9", "trab_10", 
+                     "trab_11", "trab_12", "trab_13", "trab_14")
+
+rm(caeblf, caeblm)
+
+# join job into 2012 data
+df_2012 <- df_2012 %>% inner_join(job_2012, by = "id")
+
+#### education ####
+
+# female education
+myFiles <- list.files(pattern = "2012_ind_edad_fem_p37a_nivelnue=.*xls")
+
+eduf = data.frame(id = character(0))
+for (i in c(1,11,12,13,2,3:10)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("edu_nivel_", i, sep = "")
+  eduf <- eduf %>% right_join(temp, by = "id")
+}
+
+# male education
+
+myFiles <- list.files(pattern = "2012_ind_edad_masc_p37a_nivelnue=.*xls")
+
+edum = data.frame(id = character(0))
+for (i in c(1,11,12,13,2,3:10)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("edu_nivel_", i, sep = "")
+  edum <- edum %>% right_join(temp, by = "id")
+}
+
+edu_2012 <- bind_rows(eduf, edum) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+
+edu_2012[,2] <- rowSums(edu_2012[,2:4])
+edu_2012[,5] <- rowSums(edu_2012[,5:6])
+edu_2012[,7] <- rowSums(edu_2012[,7:14])
+edu_2012 <- edu_2012[,-c(3,4,6,8:14)]
+names(edu_2012) <- c("id", "edu_nivel_low", "edu_nivel_med", "edu_nivel_high")
+
+
+rm(eduf, edum)
+
+# join education level into 2012 data
+df_2012 <- df_2012 %>% inner_join(edu_2012, by = "id")
+
+#### illiteracy ####
+
+# male illiteracy
+myFiles <- list.files(pattern = "2012_ind_edad_fem_p35=.*xls")
+
+illif = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("leer_", i, sep = "")
+  illif <- illif %>% right_join(temp, by = "id")
+}
+
+
+myFiles <- list.files(pattern = "2012_ind_edad_masc_p35=.*xls")
+
+illim = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("leer_", i, sep = "")
+  illim <- illim %>% right_join(temp, by = "id")
+}
+
+illi_2012 <- bind_rows(illif, illim) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+
+rm(illif, illim)
+
+# join education level into 2012 data
+df_2012 <- df_2012 %>% inner_join(illi_2012, by = "id")
+
+#### place of birth ####
+
+# male place of birth
+myFiles <- list.files(pattern = "2012_ind_edad_fem_p32a=.*xls")
+
+naciof = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("nacio_", i, sep = "")
+  naciof <- naciof %>% right_join(temp, by = "id")
+}
+
+
+myFiles <- list.files(pattern = "2012_ind_edad_masc_p32a=.*xls")
+
+naciom = data.frame(id = character(0))
+for (i in 1:length(myFiles)){
+  temp <- read_xls(myFiles[i]) %>% get_2012()
+  names(temp)[2] <-paste("nacio_", i, sep = "")
+  naciom <- naciom %>% right_join(temp, by = "id")
+}
+
+nacio_2012 <- bind_rows(naciof, naciom) %>%
+  group_by(id) %>%
+  summarise_all(sum)
+
+rm(naciof, naciom)
+
+# join place of birth into 2012 data
+df_2012 <- df_2012 %>% inner_join(nacio_2012, by = "id")
+setwd("~/bolivia_census")
+save(df_2012, file = "2012.rdata")
+
+
+write.csv(df_2001, "clean2001.csv")
+write.csv(df_2012, "clean2012.csv")
+write.csv(id_map, "id_map.csv")

@@ -1,0 +1,464 @@
+---
+title: "Mysterious Drop in Indigenous Population in Bolivia"
+author: "Christopher Han"
+date: "11/25/2020"
+output: 
+  rmarkdown::pdf_document: 
+    fig_caption: yes
+    includes: 
+      in_header: preamble.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, cache = TRUE)
+
+options(scipen=10000)
+
+setwd("~/bolivia_census")
+source("packages.R")
+
+load("saved_files/2001.rdata")
+load("saved_files/2012.rdata")
+```
+
+# Abstract
+
+In the 2012 census, Bolivia saw an unexpected decrease of 20% in the indigenous population. Many have hypothesized that the phrasing of the question, in which the word 'peasant' was newly introduced in 2012, was the primary reason for this massive decrease in self-identification of indigenous people. In this paper, I explored socioeconomic factors to observe possible demographic changes from 2001 to 2012 and whether the can possibly explain the drop in self-identification of indigenous population. I used the ecological inference method by Gary King with additional layers of simulation in order to compare the proportion of indigenous population in groups with various socioeconomic characteristics. I identified urban vs. rural and educational attainment as possible factors and recommended them to be considered for future research. My findings imply that the phrasing of the question alone may not fully explain the decrease in indigenous population, but rather a combination of the aforementioned and socioeconomic factors.
+
+# Introduction
+
+The biggest mystery of the 2012 Census in Bolivia was the massive decrease of 20% in the indigenous population. In just a decade, the indigenous population decreased from 3.14 million to 2.85 million. Previous research into this phenomenon has mostly concerned themselves with analyzing the phrasing of the question. Pablo Stefanoni hypothesizes that the change in the phrasing of the question from 2001 to 2012 was a possible cause for the sharp decrease in self-identification of indigenous population. In 2012, the question used the phrase "indigenous native peasant" (¿pertenece a alguna nación o pueblo indígena originario campesino? Si-NO ¿a cual?), whereas in 2001, the question used the phrase "indigenous or native people" (¿Se considera perteneciente a alguno de los siguientes pueblos originarios o indígenas?). It is hypothesized that "by introducing the 'peasant' category, some people opted for answering 'no'" in 2012. 
+
+![2001 Question](~/bolivia_census/Visualization/2001_question.PNG){width=60%}
+
+![2012 Question](~/bolivia_census/Visualization/2012_question.PNG){width=60%}
+
+If it is true that the phrasing of the question is what caused the 20% decrease in indigenous population, that is a crucial surveying error and it unfairly diminishes the indigenous population's representation in Bolivia. This is especially damaging to the political representation of indigenous groups, such as having seats in the Parliament. 
+
+In this project, instead of focusing on the phrasing of the question, I aim to analyze socioeconomic factors to look at possible demographic changes from 2001 to 2012 and whether they can possibly explain the drop in self-identification of indigenous population. There is one previous research article by Daniel Morales that also analyzes the socioeconomic factors. However, the data set used is not the official census data, but rather the LAPOP's AmericasBarometer between 2004 and 2014. In addition, I was unfortunately only able to access the abstract and not the actual contents of the article to observe what methods he used. Instead, the method developed in this paper takes the main ideas from ecological inference method by Gary King and adds additional layers of simulations. It is important to note that the goal is to make suggestions for future research without making any definitive claims about the direct effect of a variable or draw any conclusions about causation due to the limitations of using aggregated survey data.
+
+# Study Design
+
+I obtained the 2001 and 2012 census data from Instituto Nacional de Estadistica ([INE](https://www.ine.gob.bo/index.php/censos-y-banco-de-datos/censos/)) and added additional variables of interest from the queried tables provided. In total, I processed and merged 141 files in order to produce two final tables containing 2001 and 2012 census variables. Arguably the biggest challenge was transforming both the 2001 and 2012 data to match each other due to inconsistencies between tables and minor differences in answer choices of survey questions. Unfortunately, individual level data was not made available by the INE. Rather, the lowest common denominator between all the files was municipalities, in which there were 339 data points across the nine departments in Bolivia. Only the variables from 2001 that had an equivalent or relatively equivalent counterpart in 2012 were included. The various files were merged together based on the id variable, which contains the unique 6 digit code for every municipality. 
+
+Below is a summary of the extracted variables and the files used. Note that some variables have different age ranges such as ind_pop which is 15 years and older versus ed_pub which is 4 years and older. These differences are noted and accounted for in the methodology. Every variable except for id, departamento, and municipio are count data representing the number of people from the municipality that apply to that characteristic.
+
+**Identification**
+
+- id - Unique 6 digit code for every municipality
+- departamento - Name of department
+- municipio - Name of municipality
+
+**Population**
+
+- ind_pop - Self-identified indigenous population over 15 years of age
+- total_pop - Total population
+- total_pop_15ymas - Total population of 15 years or older
+- hombre - Male
+- mujer - Female
+- urban - Urban 
+- rural - Rural
+
+**Birth**
+
+- reg_civil_si - Birth documented in registry office
+- reg_civil_no - Birth not documented in registry office
+- reg_civil_se - Birth documentation not specified
+
+**Age**
+
+- edad0a60 - Age 0 to 60
+- edad60ymas - Age 60 or more
+
+Note: Because of an inconsistency in 2001 data, the age had to be aggregated from 0 to 60 and 60 or more. This unfortunately results in a lost opportunity to analyze a more granular age range.
+
+**Education (4 years and older)**
+
+- ed_pub - Enrolled in public education
+- ed_priv - Enrolled in private education
+- ed_no - Not enrolled in school
+- edu_nivel_low - Preschool level
+- edu_nivel_med - School (Elementary, Middle, High School)
+- edu_nivel_high - Higher education (University, Doctorate, Technical, Occupational, Military, Political School)
+- leer_1 - Literate
+- leer_2 - Illiterate
+- leer_3 - Did not specify literacy
+
+For 2012, the question about current enrollment included religious schools ("a una de convenio") as an option. Since 2001 census did not list this as an option, it was excluded from the table. However, it is worth noting the difference in the numbers because of this exclusion.
+
+**Language**
+
+- idi_castellano - Speaks Spanish
+- idi_quechua - Speaks Quechua
+- idi_guarani - Speaks Guarani
+- idi_aymara - Speaks Aymara
+- idi_otro - Speaks other indigenous language
+- idi_extranjero - Speaks a foreign language
+
+(Multiple responses allowed)
+
+**Relationship Status (15 years and older)**
+
+- civ_soltero - Single
+- civ_casado - Married
+- civ_conviviente - Has a partner
+- civ_separado - Separated
+- civ_divorciado - Divorced
+- civ_viudo - Widowed
+
+**Migration**
+
+- nacio_1 - Born here
+- nacio_2 - Born in other area of Bolivia
+- nacio_3 - Born in a foreign country
+- vive_aqui - Currently lives here
+- vive_otro - Currently lives in other area of Bolivia
+- vive_exterior - Currently lives in other country
+
+**Housing**
+
+- viv_casa - Lives in a house
+- viv_dep - Lives in an apartment
+- viv_cuarto - Cuarto o habitacion suelta
+- viv_improv - Improvised or mobile housing
+- viv_local_no - Unmarked housing
+- elec_si - Has electricity in home
+- elec_no - No electricity in home
+
+Note: elec_si and elec_no data is missing from 2001 table.
+
+Housing data is taken from "Vivienda Particular" section of the survey and does not consider collective housing such as hotels, military establishments, and religious facilities. Therefore, the total population to be considered in analysis of housing should be a total of viv_casa ~ viv_local_no (this number will be significantly less than the actual total population).
+
+**Industry (7 years and older)**
+
+- trab_1 - Finance
+- trab_2 - Real Estate
+- trab_3 - Public Administration, Defense, National Security
+- trab_4 - Education
+- trab_5 - Social and Health Services
+- trab_6 - Domestic Work
+- trab_7 - International Organization
+- trab_8 - Mining
+- trab_9 - Manufacturing
+- trab_10 - Utilities (Electricity, Gas, Water)
+- trab_11 - Construction
+- trab_12 - Wholesale and Retail Trade
+- trab_13 - Hotel and Restaurant
+- trab_14 - Transportation, Storage, Communication
+
+Note: There are other industries not included because the 2001 and 2012 data did not match up. Therefore, the total population to be considered in analysis of industry should be a total of trab_1 ~ trab_14 (this number will be significantly less than the actual total population).
+
+**Employment Type (7 years and older)**
+
+- ocu_obrero - Employed
+- ocu_cuenta_propia - Self-Employed
+- ocu_empleador - Employer
+- ocu_sin_renum - Working without pay
+- ocu_coop - Worker cooperative
+
+Note: In 2012, the domestic work category was added to employment type. 2001 survey does not include this option.
+The total population to be considered in analysis of employment type should be a total of ocu_obrero ~ ocu_coop (this number will be significantly less than the actual total population).
+
+**Files used for 2001:**
+
+Total: 65 files 
+
+- 2001.xlsx
+- 2001_ind_edad_fem_caebl=(3 ~ 17).xls
+- 2001_ind_edad_fem_p34a=(1 ~ 3).xls
+- 2001_ind_edad_fem_p36=(1,2,9).xls
+- 2001_ind_edad_fem_p39niv=(11 ~ 23).xls
+- 2001_ind_edad_masc_caebl=(3 ~ 17).xls
+- 2001_ind_edad_masc_p34a=(1 ~ 3).xls
+- 2001_ind_edad_masc_p36=(1,2,9).xls
+- 2001_ind_edad_masc_p39niv=(11 ~ 23).xls
+
+**Files used for 2012:**
+
+Total: 76 files
+
+- 2012.xlsx 
+- Pertenencia a algun Pueblo.xlsx 
+- Sexo_InscripcionRegistroCivil_TenenciaCedula.xlsx 
+- Edad_Quinquenal.xlsx 
+- AsisteEscolar_Idioma que Aprendio en la Ninez.xlsx 
+- DondeNacio_DondeViveHabitual_DondeVivia hace 5anos.xlsx 
+- EstadoCivil_CategoriaOcupacional.xlsx 
+- TipoVivienda_Ocupacion vivienda.xlsx 
+- 2012_ind_edad_fem_p32a=(1,2,3).xls 
+- 2012_ind_edad_fem_p35=(1,2,9).xls 
+- 2012_ind_edad_fem_p37a_nivelnue=(1,2,3, 9 ~ 18).xls 
+- 2012_ind_edad_fem_p44=(2 ~ 12,15,16,17,20,21).xls 
+- 2012_ind_edad_masc_p32a=(1,2,3).xls 
+- 2012_ind_edad_masc_p35=(1,2,9).xls 
+- 2012_ind_edad_masc_p37a_nivelnue=(1,2,3, 9 ~ 18).xls 
+- 2012_ind_edad_masc_p44=(2 ~ 12,15,16,17,20,21).xls 
+
+Note: Changed the name of file 2012_ind_edad_masc_p44=21(1) -> 2012_ind_edad_fem_p44=21 after cross validating the error.
+
+It is worth noting that since these are census data, they are prone to human errors and various survey bias that may skew the results. 
+
+# Methodology
+
+Working with the census data has some crucial limitations. First, the individual level behaviors cannot be directly calculated from aggregate data. For example, if a municipality has 40% urban population and 50% indigenous population, we cannot directly calculate the proportion of indigenous people living in an urban area. It is equally possible that 100% of urban population is indigenous or that 0% of urban population is indigenous. Secondly, it is infeasable to draw conclusions about causation due to the census being an observational study and not a randomized experiment. The best I can do is suggest possible variables of interest that seem to result in differences in indigenous population. 
+
+In order to work around the limitations, I used the [Ecological Inference Method by Gary King](https://gking.harvard.edu/files/gking/files/ei.pdf) that runs simulations via MCMC to estimate the individual level behavior from aggregate data. Below is a step-by-step explanation of my method.
+
+$\beta_i$ = Proportion of indigenous population for $i^{th}$ level of the variable of interest
+
+For each variable,
+
+1. Resolve any differences in age range
+2. Run simulation via MCMC in order to estimate the $\beta_i$'s for the 339 municipalities in 2001
+3. Use a weighted average (population of municipality / population of Bolivia) to estimate $\beta_i$'s for the country of Bolivia
+4. Repeat steps 2 and 3 100 times to simulate density distributions
+5. Compare the $\beta_i$'s to each other (and whether the distribution overlaps) to see if there is a significant difference between the levels of the variable
+6. Repeat steps 1 - 5 for 2012
+7. Compare $\beta_{i,2001}$'s and $\beta_{i,2012}$'s to see if there is an interesting difference
+8. Compare the proportion of variable levels between 2001 and 2012 to see if there is an interesting difference (e.g: 0.4 urban, 0.6 rural in 2001 vs. 0.5 urban, 0.5 rural in 2001)
+9. Compile results from steps 5, 7, 8 to decide whether the variable could possibly explain the drop in the indigenous population 
+
+Note that the goal of this project is to give suggestion about which variables should be considered for future research, not to provide a conclusion about what caused the drop. Although the method gives sensible numbers that makes intuitive sense, it is not without flaws. First, it is sensitive to unequal sample size within the groups of the variable. For example, if group A accounts for 95% of the population and group B accounts for only 5% of the population, the method would produce a very concentrated density distribution for group A and much less concentrated density distribution for group B, potentially causing problems when we try to test for significant differences between groups. Being cognizant of this weakness, much of the analysis is based on comparing the average and making generalized comments without giving statistical significance to the results. The density distributions should only be used as simulated attempts to visualize the distribution, not as exact representation of how the $\beta_i$'s are distributed.
+
+
+# Results
+
+## Exploratory Analysis
+Looking at the distribution of indigenous population between 2001 and 2012, it is clear that the overall distribution shifted lower in 2012. Comparing the proportion of indigenous population in the nine departments, we can observe that municipalities in Cochabamba and La Paz saw the largest decrease in the indigenous population where as those in Beni and Tarija saw the smallest decrease, on average. Interestingly, municipalities in Pando actually saw an increase. The significant decrease in the indigenous population in Santa Cruz, La Paz, and Cochabamba (the three most populous departments) likely explains the nationwide decrease from 2001 to 2012.
+
+```{r plot1, fig.cap = "\\label{fig:plot1} Comparison of Indigenous Population Density 2001 vs. 2012"}
+theme_update(plot.title = element_text(hjust = 0.5))
+
+ind_pop2001 <- df_2001$ind_pop / df_2001$total_pop_15ymas
+ind_pop2012 <- df_2012$ind_pop / df_2012$total_pop_15ymas
+df_ind_pop <- melt(data.frame(ind_pop2001, ind_pop2012))
+
+g1 <- ggplot(df_ind_pop, aes(x = value, fill = variable))
+
+g1 + geom_density(alpha=0.25) + labs(title = "Distribution of Indigenous Population in Municipalities",
+                                     x = "Proportion of Indigenous Population",
+                                     y = "Density") + scale_fill_discrete(name = "Years",
+                                                                          labels = c("2001", "2012")) + theme(legend.position = "bottom")
+```
+
+```{r plot2, fig.cap = "\\label{fig:plot2} Proportion of Indigenous Population 2001 vs. 2012 by Departments"}
+theme_update(plot.title = element_text(hjust = 0.5))
+
+temp_1 <- df_2001 %>% group_by(departamento) %>%
+  summarise(ind_pop_prop = sum(ind_pop) / sum(total_pop_15ymas))
+
+temp_2 <- df_2012 %>% group_by(departamento) %>%
+  summarise(ind_pop_prop = sum(ind_pop) / sum(total_pop_15ymas))
+
+df_plot2 <- pivot_longer(temp_1 %>% inner_join(temp_2, by = "departamento"),
+                         cols = c(ind_pop_prop.x, ind_pop_prop.y))
+
+g2 <- ggplot(df_plot2, aes(x = name, y = value, fill = name))
+
+g2 + geom_bar(stat = "identity") + 
+  scale_x_discrete(labels = c("2001", "2012")) + 
+  facet_wrap(.~departamento) + 
+  labs(title = "Indigenous Population 2001 vs. 2012 by Departments", 
+       x = "Years", 
+       y = "Proportion of Indigenous Population") + 
+  scale_fill_discrete(name = "Years", labels = c("2001", "2012")) + 
+  theme(legend.position = "bottom")
+
+```
+
+```{r plot3, fig.cap = "\\label{fig:plot3} Total Population by Department"}
+theme_update(plot.title = element_text(hjust = 0.5))
+
+temp_1 <- df_2001 %>% group_by(departamento) %>%
+  summarise(pop = sum(total_pop))
+
+temp_2 <- df_2012 %>% group_by(departamento) %>%
+  summarise(pop = sum(total_pop))
+
+df_plot3 <- pivot_longer(temp_1 %>% inner_join(temp_2, by = "departamento"),
+                         cols = c(pop.x, pop.y))
+
+g3 <- ggplot(df_plot3, aes(x = departamento, y = value, fill = name))
+
+g3 + geom_bar(stat = "identity", position = position_dodge(-0.9)) + coord_flip() +
+  labs(title = "Total Population by Department",
+       x = "Population",
+       y = "Department") + 
+  scale_x_discrete(limits = rev(unique(df_plot3$departamento))) + 
+  scale_fill_discrete(name = "Years",
+                      labels = c("2001", "2012")) + 
+  theme(legend.position = "bottom")
+
+```
+
+## Analysis of Socioeconomic Factors
+
+**Urban vs. Rural**
+
+One hypothesis I had was that people living in urban areas are less likely to self-identify as indigenous. If this is true and there was an increase in the urban population in Bolivia from 2001 to 2012, it could be one possible reason for the decrease in the indigenous population. Running the analysis, I find that the $\hat{\beta}_{urban}$ was 0.56 in 2001 and 0.35 in 2012. This signals a 19% estimated decrease in the proportion of indigenous population in urban areas. Rural areas saw a similar trend but of a different magnitude. The $\hat{\beta}_{rural}$ went from 0.65 in 2001 to 0.57 in 2012, showing higher estimated proportion of indigenous population in both years compared to urban areas and a smaller estimated decrease of about 8%. This result combined with the fact that proportion of urban population in Bolivia grew from 62% to 67% in 2012 may be an indication that the migration into urban areas had an impact on people's propensity to self-identify as indigenous. However, I recommend taking this result lightly since the estimates are simulated from aggregate numbers from an observational study which inherently limits the ability to draw conclusions about causation. This result should really be only taken as a suggestion for future research.
+
+```{r urban_table}
+df_2001$notind <- df_2001$total_pop_15ymas - df_2001$ind_pop
+df_2012$notind <- df_2012$total_pop_15ymas - df_2012$ind_pop
+
+load("saved_files/result_urban.rdata")
+load("saved_files/result_rural.rdata")
+load("saved_files/result_urban2012.rdata")
+load("saved_files/result_rural2012.rdata")
+
+v1 = c(round(mean(result_urban), 2), 
+       round(sum(df_2001$urban)/sum(df_2001$total_pop), 2),
+       round(mean(result_urban2012), 2),
+       round(sum(df_2012$urban)/sum(df_2012$total_pop), 2)
+)
+
+v2 = c(round(mean(result_rural), 2), 
+       round(sum(df_2001$rural)/sum(df_2001$total_pop), 2),
+       round(mean(result_rural2012), 2),
+       round(sum(df_2012$rural)/sum(df_2012$total_pop), 2)
+)
+
+urban_table = data.frame(rbind(v1,v2), 
+                         row.names = c("Urban", "Rural"))
+
+kbl(urban_table, 
+    caption = "Urban vs. Rural", 
+    booktabs = TRUE, escape = FALSE,
+    position = "h",
+    col.names = c("$\\hat{\\beta}_i$", "$p_i$", "$\\hat{\\beta}_i$", "$p_i$")) %>%
+  add_header_above(c(" " = 1, "2001" = 2, "2012" = 2)) %>%
+  kable_styling(latex_options = "striped") %>%
+  footnote(general = c("$\\\\hat{\\\\beta}_i$ = Estimated Proportion of Indigenous Population in Group i", 
+                       "$p_i$ = Proportion of Group i in Total Population"), 
+           escape = FALSE,
+           threeparttable = T) %>%
+  add_indent(positions = c(1,2), 
+             level_of_indent = 4,
+             all_cols = T)
+```
+
+```{r plot4, fig.cap = "\\label{fig:plot4} Distribution of $\\hat{\\beta}_{urban}$ vs. $\\hat{\\beta}_{rural}$"}
+theme_update(plot.title = element_text(hjust = 0.5))
+df_urban <- pivot_longer(data.frame(result_urban, result_rural, result_urban2012, result_rural2012),
+                         cols = c(result_urban, result_rural, result_urban2012, result_rural2012)
+                         )
+df_urban <- df_urban %>% mutate(year = ifelse(name %in% c("result_rural2012", "result_urban2012"), "2012", "2001"),
+                                urban = ifelse(name %in% c("result_urban", "result_urban2012"), "urban", "rural")
+)
+
+g4 <- ggplot(df_urban, aes(x = value, group = urban, fill = urban))
+
+g4 + geom_density(alpha=0.25) + 
+  labs(title = expression(paste("Distribution of ",widehat(beta)[urban], " vs. ", widehat(beta)[rural])),
+       x = "Proportion of Indigenous Population",
+       y = "Density") + 
+  facet_grid(year~.) + 
+  scale_fill_discrete(name = "Area",
+                      labels = c("Rural", "Urban")) + 
+  theme(legend.position = "bottom")
+
+```
+
+**Educational Attainment**
+
+Another hypothesis I had was that the higher the educational attainment, the lower the likelihood of self-identification as indigenous. This hypothesis comes from the common association of indigenous population with lower educational attainment and academic performance. As the proportion of population that attain higher education increases, I would expect the proportion of self-identified indigenous population to decrease. Running the analysis, I find that in 2001, the $\hat{\beta}_{low}$ and $\hat{\beta}_{medium}$ are about the same and $\hat{\beta}_{high}$ is lower (0.63 to 0.52). In 2012, all three education level show a difference in $\hat{\beta}$, with a steady decline from $\hat{\beta}_{low}$ to $\hat{\beta}_{high}$. From this, we can speculate that people in higher education tend to identify less as indigenous population. Given that low educational attainment decreased by about 7% and high educational attainment increased by about 5%, this may be another factor that potentially caused the decrease in the overall indigenous population in 2012. 
+
+```{r education}
+load("saved_files/result_edu_nivel_low_2001.rdata")
+load("saved_files/result_edu_nivel_med_2001.rdata")
+load("saved_files/result_edu_nivel_high_2001.rdata")
+load("saved_files/result_edu_nivel_low_2012.rdata")
+load("saved_files/result_edu_nivel_med_2012.rdata")
+load("saved_files/result_edu_nivel_high_2012.rdata")
+
+b1 = c(round(mean(result_edu_nivel_low_2001), 2), 
+       round(mean(result_edu_nivel_med_2001), 2),
+       round(mean(result_edu_nivel_high_2001), 2)
+)
+
+b2 = c(round(mean(result_edu_nivel_low_2012), 2), 
+       round(mean(result_edu_nivel_med_2012), 2), 
+       round(mean(result_edu_nivel_high_2012), 2)
+)
+
+p1 = c(round(sum(df_2001$edu_nivel_low)/sum(df_2001$edu_nivel_low, df_2001$edu_nivel_med, df_2001$edu_nivel_high), 2),
+       round(sum(df_2001$edu_nivel_med)/sum(df_2001$edu_nivel_low, df_2001$edu_nivel_med, df_2001$edu_nivel_high), 2),
+       round(sum(df_2001$edu_nivel_high)/sum(df_2001$edu_nivel_low, df_2001$edu_nivel_med, df_2001$edu_nivel_high), 2)
+)
+
+p2 = c(round(sum(df_2012$edu_nivel_low)/sum(df_2012$edu_nivel_low, df_2012$edu_nivel_med, df_2012$edu_nivel_high), 2),
+       round(sum(df_2012$edu_nivel_med)/sum(df_2012$edu_nivel_low, df_2012$edu_nivel_med, df_2012$edu_nivel_high), 2),
+       round(sum(df_2012$edu_nivel_high)/sum(df_2012$edu_nivel_low, df_2012$edu_nivel_med, df_2012$edu_nivel_high), 2)
+)
+
+edu_table = data.frame(cbind(b1,p1, b2, p2), 
+                         row.names = c("Low", "Medium", "High"))
+
+kbl(edu_table, 
+    caption = "Educational Attainment", 
+    booktabs = TRUE, escape = FALSE,
+    position = "h",
+    col.names = c("$\\hat{\\beta}_i$", "$p_i$", "$\\hat{\\beta}_i$", "$p_i$")) %>%
+  add_header_above(c(" " = 1, "2001" = 2, "2012" = 2)) %>%
+  kable_styling(latex_options = "striped") %>%
+  footnote(general = c("$\\\\hat{\\\\beta}_i$ = Estimated Proportion of Indigenous Population in Group i", 
+                       "$p_i$ = Proportion of Group i in Total Population",
+                       "Low = Preschool Level",
+                       "Medium = Elementary, Middle, High School",
+                       "High = Higher education"),
+           escape = FALSE,
+           threeparttable = T) %>%
+  add_indent(positions = c(1,2,3), 
+             level_of_indent = 4,
+             all_cols = T)
+```
+
+```{r plot5}
+theme_update(plot.title = element_text(hjust = 0.5))
+
+df_education <- pivot_longer(data.frame(result_edu_nivel_low_2001, result_edu_nivel_med_2001, result_edu_nivel_high_2001, 
+                                        result_edu_nivel_low_2012, result_edu_nivel_med_2012, result_edu_nivel_high_2012),
+                         cols = c(result_edu_nivel_low_2001, result_edu_nivel_med_2001, result_edu_nivel_high_2001, 
+                                  result_edu_nivel_low_2012, result_edu_nivel_med_2012, result_edu_nivel_high_2012)
+                         )
+df_education <- df_education %>% mutate(year = ifelse(name %in% c("result_edu_nivel_low_2012", "result_edu_nivel_med_2012", "result_edu_nivel_high_2012"), "2012", "2001"),
+                                edu = ifelse(name %in% c("result_edu_nivel_low_2001", "result_edu_nivel_low_2012"), "Low", 
+                                             ifelse(name %in% c("result_edu_nivel_med_2001", "result_edu_nivel_med_2012"), "Medium", "High"))
+)
+
+g5 <- ggplot(df_education, aes(x = value, group = edu, fill = edu))
+
+g5 + geom_density(alpha=0.25) + 
+  labs(title = expression(paste("Distribution of ",widehat(beta)[low], " vs. ", widehat(beta)[medium], " vs. ", widehat(beta)[high])),
+       x = "Proportion of Indigenous Population",
+       y = "Density") + 
+  facet_grid(year~.) + 
+  scale_fill_discrete(name = "Education",
+                      labels = c("Low", "Medium", "High")) + 
+  theme(legend.position = "bottom")
+
+
+```
+
+**Other Variables**
+
+For the industry variable, one minor interesting observation was that only $\hat{beta}_{mining}$ stayed relatively the same from 2001 to 2012 while all other industries saw a decrease. Similar phenomenon happened for housing, where $\hat{\beta}_{improvised}$ stayed relatively the same from 2001 to 2012 while all other forms of housing saw a decrease. These two observations may be just the result of multiple testing. Since I am testing many variables and many levels within the variables, I am bound to find some interesting results at some point. Again, these are meant to be taken as recommendations for future research areas, not a definitive answer as to what caused the decline.
+
+Except for the ones mentioned above, none of the other variables showed enough difference in $\hat{\beta}_i$ between the groups or a change in $p_i$ to suggest any meaningful catalyst for nationwide decrease in the proportion of indigenous population. For example, age, gender, place of birth, current residence, employment type saw little change in the composition of $p_i$'s and the corresponding $\hat{\beta}_i$'s went down uniformly across all the groups. 
+
+# Conclusion
+
+For this project, I assessed the socioeconomic factors of Bolivia to suggest any possible factors that may have impacted the nationwide decrease of nearly 20% in the indigenous population in 2012. From the analysis, I find that whether a person lives in a urban or rural area and his/her educational attainment are two factors that may have influenced the decline. In both 2001 and 2012, there were lower proportions of indigenous population in urban areas and urban areas saw a larger decrease from 2001 to 2012 compared to rural areas. Since the urban population in Bolivia rose by about 5% in 2012, this may have been one of the factors contributing to the decline of indigenous population. Educational attainment also seemed to influence the proportion of indigenous population. In general, more educated population had lower proportion of indigenous people. Given that proportion of low educational attainment decreased by about 7% and high educational attainment increased by about 5%, this is also an interesting area for future research.
+
+The expectation coming into this project was that at best, I would be able to identify interesting variables for future research. Due to the limitations arising from the way census data is published, I had to use simulations in order to estimate the individual-level behavior from municipality-level aggregated data. Moreover, since census is an observational study, I am inherently unable to draw any definitive conclusion about whether a variable directly caused the decline in indigenous population. Nevertheless, I was able to identify Urban vs. Rural and Educational Attainment as two variables of interest for future research into this topic. In reality, we will never know exactly what caused the decline since it is likely a combination of socioeconomic factors and the phrasing of the question. Census data gives an important representation of the nation's demographics and influences many government policies. Therefore, it would be for the benefit of the indigenous population in Bolivia to conduct further research into the two variables in order to estimate what proportion of the decline was due to an actual change of demographics vs. due to the phrasing of the question.
+
+# References
+
+https://www.ine.gob.bo/index.php/censos-y-banco-de-datos/censos/
+
+https://indiancountrytoday.com/archive/where-have-all-the-indigenous-gone-bolivia-sees-20-percent-drop-4tDu8MNC6ESXZsySRfT1qw
+
+http://siid.group.shef.ac.uk/blog/bolivian-indigenous-people-statistically-disappearing/ 
+
+https://rebelion.org/por-que-disminuyo-la-poblacion-indigena/ 
+
